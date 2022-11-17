@@ -1,26 +1,47 @@
 package ru.netology.http;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Server {
+import static java.util.Optional.ofNullable;
+
+public class Server implements Handler {
     private static final int NUM_THREADS = 64;
 
-    private final Set<String> routes = new CopyOnWriteArraySet<>();
+    private final String staticFilesDir = "./public";
+    private final String templatesDir = "./public";
+
+    private final Map<String, Map<String, Handler>> handlersPathMap;
+    private final Handler staticFileHandler;
+    private final Handler templateFileHandler;
 
     protected final ExecutorService executor;
 
     public Server() {
+        this.handlersPathMap = new HashMap<>();
         this.executor = Executors.newFixedThreadPool(NUM_THREADS);
+        this.staticFileHandler = new StaticFileHandler(staticFilesDir);
+        this.templateFileHandler = new TemplateFileHandler(templatesDir);
     }
 
-    public Set<String> getRoutes() {
-        return routes;
+    public void addHandler(String method, String path, Handler handler) {
+        var methodKey = method.toUpperCase();
+        var methodMap = handlersPathMap.computeIfAbsent(path, k -> new HashMap<>());
+        methodMap.put(methodKey, handler);
+    }
+
+    @Override
+    public void handle(Request request, BufferedOutputStream responseStream) throws IOException {
+        ofNullable(handlersPathMap.get(request.getPath()))
+                .map(methodMap -> methodMap.get(request.getMethod()))
+                .orElseGet(() -> new StatusHandler(HttpStatus.NOT_FOUND))
+                .handle(request, responseStream);
     }
 
     public void listen(int port) {
@@ -43,5 +64,13 @@ public class Server {
     protected void handleConnection(Socket socket) throws IOException {
         var connectionHandler = new ConnectionHandler(socket, this);
         executor.submit(connectionHandler);
+    }
+
+    public Handler getStaticFileHandler() {
+        return staticFileHandler;
+    }
+
+    public Handler getTemplateFileHandler() {
+        return templateFileHandler;
     }
 }
