@@ -1,26 +1,40 @@
 package ru.netology.http;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public class Server {
+import static java.util.Optional.ofNullable;
+
+public class Server implements Handler {
     private static final int NUM_THREADS = 64;
 
-    private final Set<String> routes = new CopyOnWriteArraySet<>();
+    private final Map<String, Map<String, Handler>> handlersPathMap;
 
     protected final ExecutorService executor;
 
     public Server() {
+        this.handlersPathMap = new HashMap<>();
         this.executor = Executors.newFixedThreadPool(NUM_THREADS);
     }
 
-    public Set<String> getRoutes() {
-        return routes;
+    public void addHandler(String method, String path, Handler handler) {
+        var methodKey = method.toUpperCase();
+        var methodMap = handlersPathMap.computeIfAbsent(path, k -> new HashMap<>());
+        methodMap.put(methodKey, handler);
+    }
+
+    @Override
+    public void handle(Request request, BufferedOutputStream responseStream) throws IOException {
+        ofNullable(handlersPathMap.get(request.getPath()))
+                .map(methodMap -> methodMap.get(request.getMethod()))
+                .orElseGet(() -> new StatusHandler(HttpStatus.NOT_FOUND))
+                .handle(request, responseStream);
     }
 
     public void listen(int port) {
@@ -44,4 +58,5 @@ public class Server {
         var connectionHandler = new ConnectionHandler(socket, this);
         executor.submit(connectionHandler);
     }
+
 }
