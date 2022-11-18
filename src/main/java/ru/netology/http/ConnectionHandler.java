@@ -13,11 +13,15 @@ public class ConnectionHandler implements Runnable {
     protected final BufferedReader in;
     protected final BufferedOutputStream out;
 
+    private final RequestReader requestReader;
+
     public ConnectionHandler(Socket socket, Handler rootHandler) throws IOException {
         this.socket = socket;
         this.rootHandler = rootHandler;
         this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
         this.out = new BufferedOutputStream(socket.getOutputStream());
+
+        this.requestReader = new RequestReader();
     }
 
     @Override
@@ -36,17 +40,7 @@ public class ConnectionHandler implements Runnable {
     }
 
     protected Request parseRequest(BufferedReader in) throws IOException {
-        // read only request line for simplicity
-        // must be in form GET /path HTTP/1.1
-        final var requestLine = in.readLine();
-        final var parts = requestLine.split(" ");
-
-        if (parts.length != 3) {
-            // just close socket
-            return null;
-        }
-
-        return new Request(parts[0], parts[1], parts[2]);
+        return requestReader.read(in);
     }
 
     public void close() {

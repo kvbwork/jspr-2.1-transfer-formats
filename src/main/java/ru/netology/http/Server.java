@@ -14,20 +14,13 @@ import static java.util.Optional.ofNullable;
 public class Server implements Handler {
     private static final int NUM_THREADS = 64;
 
-    private final String staticFilesDir = "./public";
-    private final String templatesDir = "./public";
-
     private final Map<String, Map<String, Handler>> handlersPathMap;
-    private final Handler staticFileHandler;
-    private final Handler templateFileHandler;
 
     protected final ExecutorService executor;
 
     public Server() {
         this.handlersPathMap = new HashMap<>();
         this.executor = Executors.newFixedThreadPool(NUM_THREADS);
-        this.staticFileHandler = new StaticFileHandler(staticFilesDir);
-        this.templateFileHandler = new TemplateFileHandler(templatesDir);
     }
 
     public void addHandler(String method, String path, Handler handler) {
@@ -66,11 +59,4 @@ public class Server implements Handler {
         executor.submit(connectionHandler);
     }
 
-    public Handler getStaticFileHandler() {
-        return staticFileHandler;
-    }
-
-    public Handler getTemplateFileHandler() {
-        return templateFileHandler;
-    }
 }

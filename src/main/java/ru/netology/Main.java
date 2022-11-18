@@ -1,8 +1,6 @@
 package ru.netology;
 
-import ru.netology.http.Handler;
-import ru.netology.http.Request;
-import ru.netology.http.Server;
+import ru.netology.http.*;
 
 import java.io.BufferedOutputStream;
 import java.io.IOException;
@@ -17,11 +15,14 @@ public class Main {
                 "/events.js"
         );
         int port = 9999;
+        var filesDir = "./public";
+        var staticFileHandler = new StaticFileHandler(filesDir);
+        var templateFileHandler = new TemplateFileHandler(filesDir);
 
         Server server = new Server();
 
-        validPaths.forEach(path -> server.addHandler("GET", path, server.getStaticFileHandler()));
-        server.addHandler("GET", "/classic.html", server.getTemplateFileHandler());
+        validPaths.forEach(path -> server.addHandler("GET", path, staticFileHandler));
+        server.addHandler("GET", "/classic.html", templateFileHandler);
 
         // добавление handler'ов (обработчиков)
         server.addHandler("GET", "/messages", new Handler() {
