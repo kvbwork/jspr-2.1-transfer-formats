@@ -12,11 +12,7 @@ public class StatusHandler implements Handler {
 
     @Override
     public void handle(Request request, BufferedOutputStream responseStream) throws IOException {
-        responseStream.write((
-                "HTTP/1.1 " + httpStatus.code + " " + httpStatus.message + "\r\n" +
-                        "Content-Length: 0\r\n" +
-                        "Connection: close\r\n" +
-                        "\r\n"
-        ).getBytes());
+        ResponseInfo responseInfo = new ResponseInfo(httpStatus);
+        responseStream.write(responseInfo.build().getBytes());
     }
 }

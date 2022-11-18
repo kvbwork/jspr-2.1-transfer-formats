@@ -16,15 +16,11 @@ public class StaticFileHandler implements Handler {
     public void handle(Request request, BufferedOutputStream responseStream) throws IOException {
         final var filePath = Path.of(filesDirectory, request.getPath());
         final var mimeType = Files.probeContentType(filePath);
-
         final var length = Files.size(filePath);
-        responseStream.write((
-                "HTTP/1.1 200 OK\r\n" +
-                        "Content-Type: " + mimeType + "\r\n" +
-                        "Content-Length: " + length + "\r\n" +
-                        "Connection: close\r\n" +
-                        "\r\n"
-        ).getBytes());
+
+        ResponseInfo responseInfo = new ResponseInfo(HttpStatus.OK);
+        responseInfo.setContentInfo(mimeType, length);
+        responseStream.write(responseInfo.build().getBytes());
         Files.copy(filePath, responseStream);
     }
 }

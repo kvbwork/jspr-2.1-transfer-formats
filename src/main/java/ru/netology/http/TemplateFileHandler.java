@@ -23,13 +23,10 @@ public class TemplateFileHandler implements Handler {
                 "{time}",
                 LocalDateTime.now().toString()
         ).getBytes();
-        responseStream.write((
-                "HTTP/1.1 200 OK\r\n" +
-                        "Content-Type: " + mimeType + "\r\n" +
-                        "Content-Length: " + content.length + "\r\n" +
-                        "Connection: close\r\n" +
-                        "\r\n"
-        ).getBytes());
+
+        ResponseInfo responseInfo = new ResponseInfo(HttpStatus.OK);
+        responseInfo.setContentInfo(mimeType, content.length);
+        responseStream.write(responseInfo.build().getBytes());
         responseStream.write(content);
     }
 }
