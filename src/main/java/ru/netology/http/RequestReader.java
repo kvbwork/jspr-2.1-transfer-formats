@@ -1,9 +1,11 @@
 package ru.netology.http;
 
+import org.apache.hc.core5.net.URLEncodedUtils;
+
 import java.io.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.StringJoiner;
+import java.util.*;
+
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class RequestReader {
     private final int EXPECTED_REQUEST_LINE_PARTS = 3;
@@ -20,6 +22,7 @@ public class RequestReader {
 
         var path = pathParts[0];
         var query = pathParts.length > 1 ? pathParts[1] : "";
+        var queryParams = parseUrlEncodedParams(query);
 
         Map<String, String> headers = new HashMap<>();
         while (!(line = in.readLine()).isBlank()) {
@@ -33,7 +36,19 @@ public class RequestReader {
             body.add(line);
         }
 
-        return new Request(method, path, query, protocol, headers, body.toString());
+        return new Request(method, path, protocol, queryParams, headers, body.toString().getBytes());
+    }
+
+    protected Map<String, List<String>> parseUrlEncodedParams(String sourceString) {
+        var pairList = URLEncodedUtils.parse(sourceString, UTF_8);
+        var paramsMap = new HashMap<String, List<String>>();
+
+        pairList.forEach(pair -> {
+            paramsMap.computeIfAbsent(pair.getName(), k -> new ArrayList<>())
+                    .add(pair.getValue());
+        });
+
+        return paramsMap;
     }
 
     public Request read(InputStream in) throws IOException {
