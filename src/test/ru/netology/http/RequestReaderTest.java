@@ -1,7 +1,5 @@
 package ru.netology.http;
 
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -14,18 +12,6 @@ class RequestReaderTest {
     static final String TEST_BODY = "Строка 1\rСтрока 2\nСтрока 3\nСтрока 4";
     static final byte[] TEST_BODY_BYTES = TEST_BODY.getBytes();
 
-    RequestReader sut;
-
-    @BeforeEach
-    void setUp() {
-        sut = new RequestReader();
-    }
-
-    @AfterEach
-    void tearDown() {
-        sut = null;
-    }
-
     @Test
     void read_query_params_success() {
         String requestText = "GET /?name=%D0%98%D0%BC%D1%8F" +
@@ -34,7 +20,7 @@ class RequestReaderTest {
                 "#anchor" +
                 " HTTP1.1\r\n" +
                 "\r\n";
-        Request request = sut.read(requestText.getBytes());
+        Request request = RequestReader.read(requestText.getBytes());
 
         assertThat(request.getQueryParam("name"), hasItems("Имя"));
         assertThat(request.getQueryParam("value"), hasItems("Значение 1", "Значение 2"));
@@ -47,7 +33,7 @@ class RequestReaderTest {
                 "\r\n" +
                 TEST_BODY;
 
-        Request request = sut.read(requestText.getBytes());
+        Request request = RequestReader.read(requestText.getBytes());
 
         assertThat(Arrays.equals(request.getBody(), TEST_BODY_BYTES), is(true));
     }
@@ -59,7 +45,7 @@ class RequestReaderTest {
                 "\r\n" +
                 TEST_BODY;
 
-        Request request = sut.read(requestText.getBytes());
+        Request request = RequestReader.read(requestText.getBytes());
 
         assertThat(request.getBody().length, is(0));
     }
