@@ -2,21 +2,127 @@ package ru.netology.http;
 
 import org.apache.hc.core5.net.URLEncodedUtils;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.*;
 
 import static java.lang.Integer.parseInt;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-public class RequestReader {
+public class RequestReader implements Closeable {
+    protected static final int NOT_FOUND = -1;
+
     private final int EXPECTED_REQUEST_LINE_PARTS = 3;
     private final int EXPECTED_HEADER_LINE_PARTS = 2;
 
     private final int HEAD_LIMIT = 4096;
-    private final int BODY_LIMIT = 10 * 1024 * 1024;
+    private final int DEFAULT_BODY_LIMIT = 10 * 1024 * 1024;
+
+    protected final InputStream in;
+    protected final byte[] buffer;
+    protected int bufferLimit;
+    private int bodyLimit = DEFAULT_BODY_LIMIT;
+
+    protected final byte[] requestLineDelimiter = new byte[]{'\r', '\n'};
+    protected final byte[] headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
+
+    protected int requestLineEnd = NOT_FOUND;
+    protected int headersEnd = NOT_FOUND;
+
+    protected String method;
+    protected String path;
+    protected String protocol;
+    protected Map<String, List<String>> queryParams;
+    protected Map<String, String> headers;
+    protected byte[] bodyBytes;
+
+
+    public RequestReader(InputStream inputStream) {
+        this.in = inputStream.markSupported()
+                ? inputStream
+                : new BufferedInputStream(inputStream);
+        in.mark(HEAD_LIMIT);
+        buffer = new byte[HEAD_LIMIT];
+    }
+
+    public Request read() throws IOException {
+        bufferLimit = in.read(buffer);
+
+        if (readRequestLine() == NOT_FOUND)
+            return null;
+
+        if (readHeaders() == NOT_FOUND)
+            return new Request(method, path, protocol, queryParams, null, null);
+
+        if (getContentLength() > getBodyLimit()) return null;
+
+        if (readBody() == NOT_FOUND)
+            return new Request(method, path, protocol, queryParams, headers, null);
+
+        return new Request(method, path, protocol, queryParams, headers, bodyBytes);
+    }
+
+    public static Request read(byte[] content) {
+        try (RequestReader requestReader = new RequestReader(new ByteArrayInputStream(content))) {
+            return requestReader.read();
+        } catch (IOException ignore) {
+        }
+        return null;
+    }
+
+    protected int readRequestLine() {
+        // Find Request Line
+        requestLineEnd = indexOf(buffer, requestLineDelimiter, 0, bufferLimit);
+        if (requestLineEnd == NOT_FOUND) return NOT_FOUND;
+
+        // Extract Request Line
+        final var requestLineParts = new String(Arrays.copyOf(buffer, requestLineEnd)).split(" ");
+        if (requestLineParts.length != EXPECTED_REQUEST_LINE_PARTS) return NOT_FOUND;
+
+        method = requestLineParts[0];
+        final var pathParts = requestLineParts[1].split("[?#]");
+        protocol = requestLineParts[2];
+
+        path = pathParts[0];
+        final var query = pathParts.length > 1 ? pathParts[1] : "";
+        queryParams = parseUrlEncodedParams(query);
+
+        return requestLineEnd;
+    }
+
+    protected int readHeaders() throws IOException {
+        // Find Headers
+        final var headersStart = requestLineEnd + requestLineDelimiter.length;
+        headersEnd = indexOf(buffer, headersDelimiter, headersStart, bufferLimit);
+        if (headersEnd == NOT_FOUND) return NOT_FOUND;
+
+        // Extract Headers
+        in.reset();
+        in.skip(headersStart);
+        final var headersLines = new String(in.readNBytes(headersEnd - headersStart)).split("\r\n");
+
+        headers = new HashMap<>();
+        for (String line : headersLines) {
+            var headerParts = line.split(":");
+            if (headerParts.length != EXPECTED_HEADER_LINE_PARTS) continue;
+            headers.put(headerParts[0].trim(), headerParts[1].trim());
+        }
+
+        return headersEnd;
+    }
+
+    protected int readBody() throws IOException {
+        final var contentLength = getContentLength();
+
+        // no body with GET method
+        if ("GET".equals(method) || contentLength == 0) return NOT_FOUND;
+
+        // Extract Body after headers delimiter
+        bodyBytes = new byte[contentLength];
+        in.skip(headersDelimiter.length);
+        in.read(bodyBytes);
+
+        return contentLength;
+    }
 
     protected Map<String, List<String>> parseUrlEncodedParams(String sourceString) {
         var pairList = URLEncodedUtils.parse(sourceString, UTF_8);
@@ -30,78 +136,6 @@ public class RequestReader {
         return paramsMap;
     }
 
-    public Request read(InputStream inputStream) throws IOException {
-        try (var in = inputStream.markSupported()
-                ? inputStream
-                : new BufferedInputStream(inputStream)
-        ) {
-            in.mark(HEAD_LIMIT);
-
-            final byte[] buf = new byte[HEAD_LIMIT];
-            final var readCount = in.read(buf);
-
-            // Find Request Line
-            final var requestLineDelimiter = new byte[]{'\r', '\n'};
-            final var requestLineEnd = indexOf(buf, requestLineDelimiter, 0, readCount);
-            if (requestLineEnd == -1) return null;
-
-            // Extract Request Line
-            final var requestLineParts = new String(Arrays.copyOf(buf, requestLineEnd)).split(" ");
-            if (requestLineParts.length != EXPECTED_REQUEST_LINE_PARTS) return null;
-
-            final var method = requestLineParts[0];
-            final var pathParts = requestLineParts[1].split("[?#]");
-            final var protocol = requestLineParts[2];
-
-            final var path = pathParts[0];
-            final var query = pathParts.length > 1 ? pathParts[1] : "";
-            final var queryParams = parseUrlEncodedParams(query);
-
-            // Find Headers
-            final var headersDelimiter = new byte[]{'\r', '\n', '\r', '\n'};
-            final var headersStart = requestLineEnd + requestLineDelimiter.length;
-            final var headersEnd = indexOf(buf, headersDelimiter, headersStart, readCount);
-            if (headersEnd == -1)
-                return new Request(method, path, protocol, queryParams, null, null);
-
-            // Extract Headers
-            in.reset();
-            in.skip(headersStart);
-            final var headersLines = new String(in.readNBytes(headersEnd - headersStart)).split("\r\n");
-
-            Map<String, String> headers = new HashMap<>();
-            for (String line : headersLines) {
-                var headerParts = line.split(":");
-                if (headerParts.length != EXPECTED_HEADER_LINE_PARTS) continue;
-                headers.put(headerParts[0].trim(), headerParts[1].trim());
-            }
-
-            final var contentLength = parseInt(headers.getOrDefault("Content-Length", "0"));
-            if (contentLength > BODY_LIMIT) return null;
-
-            // no body with GET method
-            if ("GET".equals(method) || contentLength == 0) {
-                return new Request(method, path, protocol, queryParams, headers, null);
-            }
-
-            // Extract Body after headers delimiter
-            final var bodyBytes = new byte[contentLength];
-            in.skip(headersDelimiter.length);
-            in.read(bodyBytes);
-
-            return new Request(method, path, protocol, queryParams, headers, bodyBytes);
-        }
-    }
-
-    public Request read(byte[] content) {
-        ByteArrayInputStream in = new ByteArrayInputStream(content);
-        try {
-            return read(in);
-        } catch (IOException ignore) {
-        }
-        return null;
-    }
-
     // from google guava with modifications
     protected static int indexOf(byte[] array, byte[] target, int start, int max) {
         outer:
@@ -113,6 +147,23 @@ public class RequestReader {
             }
             return i;
         }
-        return -1;
+        return NOT_FOUND;
+    }
+
+    public int getBodyLimit() {
+        return bodyLimit;
+    }
+
+    public void setBodyLimit(int bodyLimit) {
+        this.bodyLimit = bodyLimit;
+    }
+
+    protected int getContentLength() {
+        return headers == null ? 0 : parseInt(headers.getOrDefault("Content-Length", "0"));
+    }
+
+    @Override
+    public void close() throws IOException {
+        in.close();
     }
 }

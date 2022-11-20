@@ -12,15 +12,11 @@ public class ConnectionHandler implements Runnable {
     protected final BufferedInputStream in;
     protected final BufferedOutputStream out;
 
-    private final RequestReader requestReader;
-
     public ConnectionHandler(Socket socket, Handler rootHandler) throws IOException {
         this.socket = socket;
         this.rootHandler = rootHandler;
         this.in = new BufferedInputStream(socket.getInputStream());
         this.out = new BufferedOutputStream(socket.getOutputStream());
-
-        this.requestReader = new RequestReader();
     }
 
     @Override
@@ -39,7 +35,9 @@ public class ConnectionHandler implements Runnable {
     }
 
     protected Request parseRequest(BufferedInputStream in) throws IOException {
-        return requestReader.read(in);
+        try (RequestReader requestReader = new RequestReader(in)) {
+            return requestReader.read();
+        }
     }
 
     public void close() {
