@@ -1,16 +1,15 @@
 package ru.netology.http;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.Socket;
 
 public class ConnectionHandler implements Runnable {
 
     protected final Socket socket;
     protected final Handler rootHandler;
-    protected final BufferedReader in;
+    protected final BufferedInputStream in;
     protected final BufferedOutputStream out;
 
     private final RequestReader requestReader;
@@ -18,7 +17,7 @@ public class ConnectionHandler implements Runnable {
     public ConnectionHandler(Socket socket, Handler rootHandler) throws IOException {
         this.socket = socket;
         this.rootHandler = rootHandler;
-        this.in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        this.in = new BufferedInputStream(socket.getInputStream());
         this.out = new BufferedOutputStream(socket.getOutputStream());
 
         this.requestReader = new RequestReader();
@@ -39,7 +38,7 @@ public class ConnectionHandler implements Runnable {
         }
     }
 
-    protected Request parseRequest(BufferedReader in) throws IOException {
+    protected Request parseRequest(BufferedInputStream in) throws IOException {
         return requestReader.read(in);
     }
 
