@@ -35,9 +35,7 @@ public class ConnectionHandler implements Runnable {
     }
 
     protected Request parseRequest(BufferedInputStream in) throws IOException {
-        try (RequestReader requestReader = new RequestReader(in)) {
-            return requestReader.read();
-        }
+        return new RequestReader(in).read();
     }
 
     public void close() {
