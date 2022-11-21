@@ -4,6 +4,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import ru.netology.http.codec.FormUrlEncodedDecoder;
 
 import java.io.IOException;
 import java.net.URI;
@@ -22,12 +23,15 @@ class ServerIntegrationTest {
     static final String TEST_PATH = "/test";
     static final String TEST_QUERY = "name=%D0%98%D0%BC%D1%8F" +                // name=Имя
             "&value=%D0%97%D0%BD%D0%B0%D1%87%D0%B5%D0%BD%D0%B8%D0%B5%201" +     // value=Значение 1
-            "&value=%D0%97%D0%BD%D0%B0%D1%87%D0%B5%D0%BD%D0%B8%D0%B5%202" +     // value=Значение 2
-            "#anchor";
-    static final URI TEST_URI = URI.create("http://localhost:" + TEST_PORT + TEST_PATH + "?" + TEST_QUERY);
+            "&value=%D0%97%D0%BD%D0%B0%D1%87%D0%B5%D0%BD%D0%B8%D0%B5%202";      // value=Значение 2
+    static final URI TEST_URI = URI.create("http://localhost:" + TEST_PORT + TEST_PATH);
+    static final URI TEST_URI_WITH_QUERY = URI.create(TEST_URI.toString() + "?" + TEST_QUERY);
 
     static final String TEST_BODY = "Строка 1\rСтрока 2\nСтрока 3\nСтрока 4";
     static final byte[] TEST_BODY_BYTES = TEST_BODY.getBytes();
+
+    static final String CONTENT_TYPE = "Content-Type";
+    static final String FORM_URLENCODED_TYPE = "application/x-www-form-urlencoded";
 
     static HttpClient httpClient;
     static Server server;
@@ -78,9 +82,9 @@ class ServerIntegrationTest {
     }
 
     @Test
-    void connection_get_query_params_success() throws IOException, InterruptedException {
+    void get_query_params_success() throws IOException, InterruptedException {
         httpClient.send(
-                HttpRequest.newBuilder().GET().uri(TEST_URI).build(),
+                HttpRequest.newBuilder().GET().uri(TEST_URI_WITH_QUERY).build(),
                 HttpResponse.BodyHandlers.discarding()
         );
 
@@ -92,7 +96,7 @@ class ServerIntegrationTest {
     }
 
     @Test
-    void connection_post_body_success() throws IOException, InterruptedException {
+    void post_body_success() throws IOException, InterruptedException {
         httpClient.send(
                 HttpRequest.newBuilder().uri(TEST_URI)
                         .POST(HttpRequest.BodyPublishers.ofByteArray(TEST_BODY_BYTES)).build(),
@@ -103,5 +107,22 @@ class ServerIntegrationTest {
         assertThat(capturedRequest.getPath(), equalTo(TEST_PATH));
         assertThat(Arrays.equals(capturedRequest.getBody(), TEST_BODY_BYTES), is(true));
     }
+
+    @Test
+    void post_form_urlencoded_success() throws IOException, InterruptedException {
+        httpClient.send(
+                HttpRequest.newBuilder().uri(TEST_URI)
+                        .header(CONTENT_TYPE, FORM_URLENCODED_TYPE)
+                        .POST(HttpRequest.BodyPublishers.ofString(TEST_QUERY)).build(),
+                HttpResponse.BodyHandlers.discarding()
+        );
+
+        var formData = new FormUrlEncodedDecoder(capturedRequest.getBody());
+
+        assertThat(capturedRequest.getHeader(CONTENT_TYPE).orElseThrow(), equalTo(FORM_URLENCODED_TYPE));
+        assertThat(formData.getPostParam("name"), hasItems("Имя"));
+        assertThat(formData.getPostParam("value"), hasItems("Значение 1", "Значение 2"));
+    }
+
 
 }
