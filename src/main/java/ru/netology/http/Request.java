@@ -44,7 +44,7 @@ public class Request {
                 .add("path='" + path + "'")
                 .add("query=" + queryParams)
                 .add("headers=" + headers)
-                .add("body={type='" + getContentType().orElse("") + "', len=" + body.length)
+                .add("body.len=" + body.length)
                 .toString();
     }
 
@@ -74,5 +74,9 @@ public class Request {
 
     public Optional<String> getContentType() {
         return getHeader("Content-Type");
+    }
+
+    public int getContentLength() {
+        return getBody().length;
     }
 }
