@@ -1,12 +1,14 @@
 package ru.netology.http;
 
-import org.apache.hc.core5.net.URLEncodedUtils;
+import ru.netology.http.codec.FormUrlEncodedDecoder;
 
 import java.io.*;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static java.lang.Integer.parseInt;
-import static java.nio.charset.StandardCharsets.UTF_8;
 
 public class RequestReader implements Closeable {
     protected static final int NOT_FOUND = -1;
@@ -84,7 +86,7 @@ public class RequestReader implements Closeable {
 
         path = pathParts[0];
         final var query = pathParts.length > 1 ? pathParts[1] : "";
-        queryParams = parseUrlEncodedParams(query);
+        queryParams = FormUrlEncodedDecoder.parseUrlEncodedParams(query);
 
         return requestLineEnd;
     }
@@ -122,18 +124,6 @@ public class RequestReader implements Closeable {
         in.read(bodyBytes);
 
         return contentLength;
-    }
-
-    protected Map<String, List<String>> parseUrlEncodedParams(String sourceString) {
-        var pairList = URLEncodedUtils.parse(sourceString, UTF_8);
-        var paramsMap = new HashMap<String, List<String>>();
-
-        pairList.forEach(pair -> {
-            paramsMap.computeIfAbsent(pair.getName(), k -> new ArrayList<>())
-                    .add(pair.getValue());
-        });
-
-        return paramsMap;
     }
 
     // from google guava with modifications
