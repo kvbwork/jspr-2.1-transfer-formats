@@ -1,9 +1,10 @@
 package ru.netology;
 
 import ru.netology.http.*;
+import ru.netology.http.codec.ContentPart;
+import ru.netology.http.codec.FormUrlEncodedDecoder;
+import ru.netology.http.codec.MultipartFormDataDecoder;
 
-import java.io.BufferedOutputStream;
-import java.io.IOException;
 import java.util.List;
 
 public class Main {
@@ -24,30 +25,43 @@ public class Main {
         validPaths.forEach(path -> server.addHandler("GET", path, staticFileHandler));
         server.addHandler("GET", "/classic.html", templateFileHandler);
 
-        // добавление handler'ов (обработчиков)
-        server.addHandler("GET", "/messages", new Handler() {
-            public void handle(Request request, BufferedOutputStream responseStream) throws IOException {
-                byte[] content = "Ответ на запрос /messages".getBytes();
-                String mimeType = "text/plain;charset=UTF-8";
-                responseStream.write((
-                        "HTTP/1.1 200 OK\r\n" +
-                                "Content-Type: " + mimeType + "\r\n" +
-                                "Content-Length: " + content.length + "\r\n" +
-                                "Connection: close\r\n" +
-                                "\r\n"
-                ).getBytes());
-                responseStream.write(content);
+        // пример обработки форм и извлечения параметров
+        server.addHandler("POST", "/", (request, responseStream) -> {
+            System.out.println(request);
+
+            System.out.println("Query параметры запроса:");
+            request.getQueryParams().forEach((name, valuesList) -> {
+                System.out.println(name + " = " + valuesList);
+            });
+
+            var contentType = request.getContentType().orElse("");
+
+            if (contentType.contains("form-urlencoded")) {
+                var urlencodedBody = new FormUrlEncodedDecoder(request.getBody());
+
+                System.out.println("POST параметры запроса:");
+                urlencodedBody.getPostParams().forEach((name, valuesList) -> {
+                    System.out.println(name + " = " + valuesList);
+                });
+            } else if (contentType.contains("multipart/")) {
+                var multipartBody = new MultipartFormDataDecoder(request);
+
+                System.out.println("Все части запроса:");
+                multipartBody.getParts().values().forEach(System.out::println);
+
+                System.out.println("из них POST параметры:");
+                multipartBody.getPostParams().forEach((name, valuesList) -> {
+                    System.out.println(name + " = " + valuesList);
+                });
+
+                System.out.println("файлы:");
+                multipartBody.getParts().values().stream()
+                        .flatMap(List::stream)
+                        .filter(ContentPart::isFile)
+                        .forEach(part -> System.out.printf("%s (%d байт)",
+                                part.getFileName().orElse("''"), part.getContentLength()));
             }
-        });
-        server.addHandler("POST", "/messages", new Handler() {
-            public void handle(Request request, BufferedOutputStream responseStream) throws IOException {
-                responseStream.write((
-                        "HTTP/1.1 405 Method Not Allowed\r\n" +
-                                "Content-Length: 0\r\n" +
-                                "Connection: close\r\n" +
-                                "\r\n"
-                ).getBytes());
-            }
+            responseStream.write(new ResponseInfo(HttpStatus.OK).build().getBytes());
         });
         System.out.println("Running server on port: " + port);
         server.listen(port);

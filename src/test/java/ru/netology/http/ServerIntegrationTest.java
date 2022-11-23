@@ -1,10 +1,14 @@
 package ru.netology.http;
 
+import org.apache.hc.client5.http.classic.methods.HttpPost;
+import org.apache.hc.client5.http.entity.mime.MultipartEntityBuilder;
+import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import ru.netology.http.codec.FormUrlEncodedDecoder;
+import ru.netology.http.codec.MultipartFormDataDecoder;
 
 import java.io.IOException;
 import java.net.URI;
@@ -12,7 +16,11 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Arrays;
+import java.util.List;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.apache.hc.core5.http.ContentType.APPLICATION_OCTET_STREAM;
+import static org.apache.hc.core5.http.ContentType.DEFAULT_TEXT;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.*;
 import static ru.netology.http.HttpStatus.OK;
@@ -124,5 +132,38 @@ class ServerIntegrationTest {
         assertThat(formData.getPostParam("value"), hasItems("Значение 1", "Значение 2"));
     }
 
+    @Test
+    void post_form_multipart_success() throws IOException {
+        var fileFieldName = "file";
+        var filename = "testfile.dat";
+        var fileCount = 1;
+
+        var valueFieldName = "value";
+        var valueList = List.of("Значение1", "Значение2");
+
+        var testTextContentType = DEFAULT_TEXT.withCharset(UTF_8);
+
+        try (var apacheHttpClient = HttpClients.createDefault()) {
+            var httpPost = new HttpPost(TEST_URI);
+            var entityBuilder = MultipartEntityBuilder.create()
+                    .addBinaryBody(fileFieldName, TEST_BODY_BYTES, APPLICATION_OCTET_STREAM, filename);
+            valueList.forEach(v -> entityBuilder.addTextBody(valueFieldName, v, testTextContentType));
+            httpPost.setEntity(entityBuilder.build());
+            apacheHttpClient.execute(httpPost, response -> null);
+        }
+
+        var multipartData = new MultipartFormDataDecoder(capturedRequest);
+        assertThat(multipartData.getPart(fileFieldName).size(), is(fileCount));
+        assertThat(multipartData.getPart(valueFieldName).size(), is(valueList.size()));
+
+        var capturedFilePart = multipartData.getPart(fileFieldName).get(0);
+        assertThat(capturedFilePart.isFile(), is(true));
+        assertThat(capturedFilePart.getFileName().orElseThrow(), equalTo(filename));
+        assertThat(Arrays.equals(capturedFilePart.getContent().orElseThrow(), TEST_BODY_BYTES), is(true));
+
+        var capturedValueList = multipartData.getPostParam(valueFieldName);
+        assertThat(capturedValueList.size(), is(valueList.size()));
+        assertThat(capturedValueList, containsInAnyOrder(valueList.toArray(String[]::new)));
+    }
 
 }
